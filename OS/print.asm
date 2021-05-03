@@ -4,8 +4,12 @@
 ;
 ;---------------------------
 
-lcd_instr	EQU 0b00000100
-lcd_data	EQU	0b00000101
+lcd_instr	    EQU 0b00000100
+lcd_data	    EQU	0b00000101
+
+lcd_set_ac_mask EQU 0x80
+
+lcd_line_length EQU 0x14
 
 ; Initialize LCD
 ; A is lost
@@ -121,12 +125,13 @@ skip_alpha_low:
  
 ; Prints a null terminated string in a 4 line lcd (20x4)
 ; HL contains buffer
+; B contains cursor
 ; C contains IO destination
 print_lcd:
  PUSH AF
- PUSH BC
  PUSH DE
  PUSH HL
+ PUSH BC
 
 ; Send LCD to Home
  LD A, 0b00000010
@@ -141,16 +146,20 @@ print_lcd:
 
 ; load 20 in B, for the line
 reset_print_lcd_loop:
- LD B, 0x14
+ LD B, lcd_line_length
 print_lcd_loop:
  CALL wait_for_busy_flag
  OUTI
  JP Z, print_lcd_skip_line
  CP (HL)
  JP NZ, print_lcd_loop
- JP end_print_lcd
+ JP print_lcd_set_cursor
  
 print_lcd_skip_line:
+; Make sure it is not end of string
+ CP (HL)
+ JP Z, print_lcd_set_cursor
+
  INC D
 ; Move LCD pointer to another line
 ; if D is 1 -> Set AC to 0x40
@@ -171,16 +180,36 @@ print_lcd_check_line_2:
  
 print_lcd_set_ac:
  LD A, B
- OR 0x80
+ OR lcd_set_ac_mask
  CALL send_instr_sync
-
  XOR A
- CP (HL)
- JP NZ, reset_print_lcd_loop
+ JP reset_print_lcd_loop
+
+print_lcd_set_cursor:
+; Get back the cursor value
+ POP BC
+ PUSH BC
+ LD E, lcd_line_length
+ LD D, (0x00 + lcd_line_length)
+ LD A, B
+ SUB E
+ JP C, print_lcd_set_cursor_perform
+ LD D, (0x40 + lcd_line_length)
+ SUB E
+ JP C, print_lcd_set_cursor_perform
+ LD D, (lcd_line_length + lcd_line_length)
+ SUB E
+ JP C, print_lcd_set_cursor_perform
+ LD D, (0x54 + lcd_line_length)
+
+print_lcd_set_cursor_perform:
+ ADD D
+ OR lcd_set_ac_mask
+ CALL send_instr_sync
  
 end_print_lcd:
+ POP BC
  POP HL
  POP DE
- POP BC
  POP AF
  RET

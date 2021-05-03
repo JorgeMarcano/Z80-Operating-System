@@ -35,7 +35,8 @@ mainloop:
  CALL send_instr_sync
  XOR A
  LD (keyboard_must_refresh), A
- 
+ LD A, (keyboard_cursor)
+ LD B, A
  CALL print_lcd
 
  JP mainloop

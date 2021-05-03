@@ -4,9 +4,11 @@
 ;
 ;---------------------------
 
-keyboard_buffer			EQU	0xC000
-keyboard_must_refresh	EQU 0xBFFF
+keyboard_cursor         EQU 0xBFFD
 keyboard_status         EQU 0xBFFE
+keyboard_must_refresh	EQU 0xBFFF
+keyboard_buffer			EQU	0xC000
+
 keyboard_status_shift   EQU 0b00000001
 keyboard_status_ctrl    EQU 0b00000010
 keyboard_status_alt     EQU 0b00000100
@@ -35,6 +37,8 @@ input_setup:
  
  XOR A
  LD (keyboard_must_refresh), A
+ LD (keyboard_status), A
+ LD (keyboard_cursor), A
  
  LD A, pio_input_word
  OUT (pio_b_ctrl), A
@@ -69,59 +73,19 @@ keyboard_int_extended:
 ; Check for Release Prefix
 keyboard_int_release:
  CP keyboard_code_release
- JP NZ, keyboard_int_backspace
+ JP NZ, keyboard_int_shift
  LD A, (keyboard_status)
  OR keyboard_status_release
  LD (keyboard_status), A
  JP end_keyboard_int_bypass_release
 ;  JP keyboard_int_add_char
 
-; Check for backspace
-keyboard_int_backspace:
- CP keyboard_code_backspace
- JP NZ, keyboard_int_left
- LD A, H
- CP HI(keyboard_buffer)
- JP NZ, keyboard_int_back_good
- LD A, L
- CP LO(keyboard_buffer)
- JP Z, end_keyboard_int
-keyboard_int_back_good:
- DEC HL
- LD (HL), 0x00
- JP end_keyboard_int
- 
-; Check left arrow
-keyboard_int_left:
- CP keyboard_code_left
- JP NZ, keyboard_int_right
- LD A, H
- CP HI(keyboard_buffer)
- JP NZ, keyboard_int_left_good
- LD A, L
- CP LO(keyboard_buffer)
- JP Z, end_keyboard_int
-keyboard_int_left_good:
- DEC HL
- JP end_keyboard_int
-
-; Check right arrow
-keyboard_int_right:
- CP keyboard_code_right
- JP NZ, keyboard_int_shift
-
- XOR A
- CP (HL)
- JP Z, end_keyboard_int
- INC HL
- JP end_keyboard_int
-
-; Check shift
+; Check shift (both left and right)
 keyboard_int_shift:
  CP keyboard_code_shift_l
  JP Z, keyboard_int_shift_good
  CP keyboard_code_shift_r
- JP NZ, keyboard_int_add_char
+ JP NZ, keyboard_int_ctrl
 keyboard_int_shift_good:
  LD D, keyboard_status_shift
  CALL keyboard_set_status_cond_press
@@ -138,27 +102,84 @@ keyboard_int_ctrl:
 ; Check alt
 keyboard_int_alt:
  CP keyboard_code_alt
- JP NZ, keyboard_int_capslock
+ JP NZ, keyboard_int_not_ctrl_word
  LD D, keyboard_status_alt
  CALL keyboard_set_status_cond_press
  JP end_keyboard_int
 
+keyboard_int_not_ctrl_word:
+; Skip if it is a release word
+ LD C, A
+ LD A, (keyboard_status)
+ BIT keyboard_status_rel_bit, A
+ JP NZ, end_keyboard_int
+ LD A, C
+
+; Check for backspace
+keyboard_int_backspace:
+ CP keyboard_code_backspace
+ JP NZ, keyboard_int_left
+; Check to see if it already at the beggining
+ LD A, (keyboard_cursor)
+ LD D, 0x00
+ CP D
+ JP Z, end_keyboard_int
+; If not at beginning, shift everything over
+ DEC A
+ LD (keyboard_cursor), A
+ LD E, A
+ LD HL, keyboard_buffer
+ ADD HL, DE
+ LD (HL), D
+ JP end_keyboard_int
+ 
+; Check left arrow
+keyboard_int_left:
+ CP keyboard_code_left
+ JP NZ, keyboard_int_right
+; Check to see if it already at the beggining
+ LD A, (keyboard_cursor)
+ CP 0x00
+ JP Z, end_keyboard_int
+; If not at beginning, move cursor back by one
+ DEC A
+ LD (keyboard_cursor), A
+ JP end_keyboard_int
+
+; Check right arrow
+keyboard_int_right:
+ CP keyboard_code_right
+ JP NZ, keyboard_int_capslock
+; Set current string position with cursor
+ LD A, (keyboard_cursor)
+ LD E, A
+ LD D, 0x00
+ LD HL, keyboard_buffer
+ ADD HL, DE
+; Check to see if already at the end of the buffer
+ XOR A
+ CP (HL)
+ JP Z, end_keyboard_int
+ ; If not at end, increase cursor by one
+ LD A, E
+ INC A
+ LD (keyboard_cursor), A
+ JP end_keyboard_int
+ 
+; Check capslock
 keyboard_int_capslock:
  CP keyboard_code_capslock
  JP NZ, keyboard_int_add_char
  LD D, keyboard_status_caps
- CALL keyboard_set_status_cond_press
+ LD A, (keyboard_status)
+ XOR D
+ LD (keyboard_status), A
  JP end_keyboard_int
 
 ; Regular Alphanumeric Input
 keyboard_int_add_char:
-
-; Skip if it is a release word
- LD C, A
  LD A, (keyboard_status)
  LD D, A
- BIT keyboard_status_rel_bit, D
- JP NZ, end_keyboard_int
 ; Check for caps lock
  XOR A
  BIT keyboard_status_cap_bit, D
@@ -170,22 +191,40 @@ keyboard_int_char_skip_caps:
  JP Z, keyboard_int_char_skip_shift
  XOR 0x01
 keyboard_int_char_skip_shift:
- ADD B
+ ADD code_addr_high
  LD B, A
 
+; Set current string position with cursor
+ LD A, (keyboard_cursor)
+ LD E, A
+ INC A
+ LD (keyboard_cursor), A
+ XOR A
+ LD D, A
+ LD HL, keyboard_buffer
+ ADD HL, DE
+ 
+; Check to see if cursor is at the end of the string,
+; if so, re-null terminate the string
+ CP (HL)
+ JP Z, keyboard_int_char_terminate
  LD A, (BC)
  LD (HL), A
  INC HL
- LD (HL), 0x00
- LD B, code_addr_high
+ JP end_keyboard_int
+keyboard_int_char_terminate:
+ LD A, (BC)
+ LD (HL), A
+ INC HL
+ LD (HL), D
  
 end_keyboard_int:
  LD A, (keyboard_status)
  AND keyboard_status_release ^ 0xff
  LD (keyboard_status), A
-end_keyboard_int_bypass_release:
  LD A, 0x01
  LD (keyboard_must_refresh), A
+end_keyboard_int_bypass_release:
  EXX
  EX AF, AF'
  EI
