@@ -8,6 +8,7 @@ The ps1 file will also automatically allow you to upload to an eeprom if you so 
 
 Currently, the memory map of my Z80 computer is very simple:
 
+```
 0x0000  *-------*
         |       |
         |  ROM  |
@@ -18,3 +19,4 @@ Currently, the memory map of my Z80 computer is very simple:
         |  RAM  |
         |       |
 0xFFFF  *-------*
+```
