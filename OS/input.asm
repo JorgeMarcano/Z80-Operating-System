@@ -124,16 +124,18 @@ keyboard_int_backspace:
  LD D, 0x00
  CP D
  JP Z, end_keyboard_int
-; TODO: Cause everything to shift over
+ 
 ; If not at beginning, shift everything over
  DEC A
  LD (keyboard_cursor), A
  LD E, A
  LD HL, keyboard_buffer
  ADD HL, DE
+ CP (HL)
+ JP Z, end_keyboard_int
  LD DE, HL
  INC HL
- CALL string_copy_nonempty_null
+ CALL string_copy_null
  JP end_keyboard_int
 
 ; Check for delete
@@ -141,12 +143,17 @@ keyboard_int_delete:
  CP keyboard_code_delete
  JP NZ, keyboard_int_left
 ; Shift everything over
+ LD A, (keyboard_cursor)
  LD E, A
+ XOR A
+ LD D, A
  LD HL, keyboard_buffer
  ADD HL, DE
+ CP (HL)
+ JP Z, end_keyboard_int
  LD DE, HL
  INC HL
- CALL string_copy_nonempty_null
+ CALL string_copy_null
  JP end_keyboard_int
  
 ; Check left arrow

@@ -1,3 +1,4 @@
+/*
 ; Copies a null terminated string,
 ; but if source string is empty, does nothing
 ; HL contains beginning of source string
@@ -25,6 +26,7 @@ end_string_copy_nonempty_null_empty:
  POP HL
  POP AF
  RET
+*/
 
 ; Copies a null terminated string
 ; HL contains beginning of source string
