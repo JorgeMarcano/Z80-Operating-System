@@ -88,7 +88,7 @@ got_decoded_value:
 /* LD A, 0x00
  CP C
  JP NZ, end_character_input
- ; TODO: ADD Line Break Code
+ 
 end_character_input:
 */
  LD BC, 0x0000

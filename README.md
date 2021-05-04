@@ -21,3 +21,15 @@ Currently, the memory map of my Z80 computer is very simple:
         |       |
 0xFFFF  *-------*
 ```
+
+Currently, the I/O map of my Z80 computer is extremely simple:
+
+| I/O Addr    | Peripheral |
+|-------------|------------|
+| 0bxxxxx100  | LCD Instr  |
+| 0bxxxxx101  | LCD Data   |
+|             |            |
+| 0bxxxx1x00  | PIO A Data |
+| 0bxxxx1x01  | PIO B Data |
+| 0bxxxx1x10  | PIO A Ctrl |
+| 0bxxxx1x11  | PIO B Ctrl |
