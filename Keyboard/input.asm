@@ -50,7 +50,6 @@ input_setup:
  EX AF, AF'
  RET
 
-; TODO: Fix Keyboard Interrupt Handler
 keyboard_interrupt:
  EX AF, AF'
  EXX

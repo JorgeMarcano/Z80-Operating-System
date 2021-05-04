@@ -54,7 +54,6 @@ input_setup:
  EX AF, AF'
  RET
 
-; TODO: Fix Keyboard Interrupt Handler
 keyboard_interrupt:
  EX AF, AF'
  EXX
@@ -88,7 +87,7 @@ keyboard_int_shift:
  JP NZ, keyboard_int_ctrl
 keyboard_int_shift_good:
  LD D, keyboard_status_shift
- CALL keyboard_set_status_cond_press
+ CALL keyboard_set_status_cond
  JP end_keyboard_int
 
 ; Check ctrl
@@ -96,7 +95,7 @@ keyboard_int_ctrl:
  CP keyboard_code_ctrl
  JP NZ, keyboard_int_alt
  LD D, keyboard_status_ctrl
- CALL keyboard_set_status_cond_press
+ CALL keyboard_set_status_cond
  JP end_keyboard_int
 
 ; Check alt
@@ -104,7 +103,7 @@ keyboard_int_alt:
  CP keyboard_code_alt
  JP NZ, keyboard_int_not_ctrl_word
  LD D, keyboard_status_alt
- CALL keyboard_set_status_cond_press
+ CALL keyboard_set_status_cond
  JP end_keyboard_int
 
 keyboard_int_not_ctrl_word:
