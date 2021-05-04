@@ -47,6 +47,7 @@ INCLUDE "print.asm"
 INCLUDE "pio.asm"
 INCLUDE "math.asm"
 INCLUDE "input.asm"
+INCLUDE "string.asm"
 INCLUDE "interrupts.asm"
 INCLUDE "scancodes.asm"
  

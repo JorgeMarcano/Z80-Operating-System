@@ -29,6 +29,7 @@ keyboard_code_shift_r   EQU 0x59
 keyboard_code_ctrl      EQU 0x14
 keyboard_code_alt       EQU 0x11
 keyboard_code_capslock  EQU 0x58
+keyboard_code_delete    EQU 0x71
 ; keyboard_code_winkey
 
 input_setup:
@@ -117,19 +118,35 @@ keyboard_int_not_ctrl_word:
 ; Check for backspace
 keyboard_int_backspace:
  CP keyboard_code_backspace
- JP NZ, keyboard_int_left
+ JP NZ, keyboard_int_delete
 ; Check to see if it already at the beggining
  LD A, (keyboard_cursor)
  LD D, 0x00
  CP D
  JP Z, end_keyboard_int
+; TODO: Cause everything to shift over
 ; If not at beginning, shift everything over
  DEC A
  LD (keyboard_cursor), A
  LD E, A
  LD HL, keyboard_buffer
  ADD HL, DE
- LD (HL), D
+ LD DE, HL
+ INC HL
+ CALL string_copy_nonempty_null
+ JP end_keyboard_int
+
+; Check for delete
+keyboard_int_delete:
+ CP keyboard_code_delete
+ JP NZ, keyboard_int_left
+; Shift everything over
+ LD E, A
+ LD HL, keyboard_buffer
+ ADD HL, DE
+ LD DE, HL
+ INC HL
+ CALL string_copy_nonempty_null
  JP end_keyboard_int
  
 ; Check left arrow
