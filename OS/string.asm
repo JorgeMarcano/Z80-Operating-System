@@ -58,3 +58,31 @@ end_string_copy_null_empty:
  POP HL
  POP AF
  RET
+
+; Empties a string of a determined size
+; HL contains pointer to beginning of string
+; BC contains size of string
+string_clear:
+ PUSH AF
+ PUSH BC
+ PUSH HL
+ XOR A
+ CP B
+ JP NZ, string_clear_loop
+ CP C
+ JP Z, end_string_clear
+  
+string_clear_loop:
+ LD (HL), A
+ INC HL
+ DEC BC
+ CP B
+ JP NZ, string_clear_loop
+ CP C
+ JP NZ, string_clear_loop
+
+end_string_clear:
+ POP HL
+ POP BC
+ POP AF
+ RET

@@ -26,3 +26,50 @@ div_mod_loop:
  DEC C
  RET
  
+; Performs DA = A * B
+mult:
+ PUSH BC
+ LD C, A
+ XOR A
+ LD D, A
+ CP B
+ JP Z, end_mult
+ CP C
+ JP Z, end_mult
+mult_loop:
+ ADD C
+ JP NC, mult_skip_overflow
+ INC D
+mult_skip_overflow:
+ DEC B
+ JP NZ, mult_loop
+end_mult:
+ POP BC
+ RET
+
+; Performs DA = A * B + C
+linear:
+ PUSH BC
+ LD D, C
+ LD C, A
+ XOR A
+ CP B
+ JP Z, end_linear_zero
+ CP C
+ JP Z, end_linear_zero
+ LD A, D
+ LD D, 0x00
+linear_loop:
+ ADD C
+ JP NC, linear_skip_overflow
+ INC D
+linear_skip_overflow:
+ DEC B
+ JP NZ, linear_loop
+ JP end_linear
+end_linear_zero:
+ LD A, D
+ LD D, 0x00
+end_linear:
+ POP BC
+ RET
