@@ -153,63 +153,167 @@ print_lcd_loop:
  JP Z, print_lcd_skip_line
  CP (HL)
  JP NZ, print_lcd_loop
- JP print_lcd_set_cursor
+ JP end_print_lcd
  
 print_lcd_skip_line:
 ; Make sure it is not end of string
  CP (HL)
- JP Z, print_lcd_set_cursor
+ JP Z, end_print_lcd
 
  INC D
-; Move LCD pointer to another line
+ CALL cursor_set_line
+ JP reset_print_lcd_loop
+
+end_print_lcd:
+; Get back the cursor value
+ POP BC
+ CALL cursor_set
+ POP HL
+ POP DE
+ POP AF
+ RET
+
+; Uses text_page_x, text_page_y, text_cursor to print a subset of the text_buffer
+; C contains IO destination
+print_text_page:
+ PUSH AF
+ PUSH DE
+ PUSH HL
+ PUSH BC
+
+; Clear LCD and send to Home
+ LD A, 0b00000001
+ CALL send_instr_sync
+
+; Get page location in relative to buffer in DE
+ LD A, (text_page_x)
+ LD C, A
+ LD A, (text_page_y)
+ LD B, text_buffer_line_size
+ CALL linear
+ LD E, A
+; Get page absolute location
+ LD HL, text_buffer
+ ADD HL, DE
+
+ XOR A
+ LD D, A
+; If first character is a null char
+ CP (HL)
+ JP Z, print_text_page_empty_line
+ POP BC
+ PUSH BC
+print_text_page_start_loop:
+ LD B, lcd_line_length
+print_text_page_loop:
+ CALL wait_for_busy_flag
+ OUTI
+ JP Z, print_text_page_next_line
+ CP (HL)
+ JP NZ, print_text_page_loop
+; If currently pointing to an empty part of the LCD,
+; skip to next line taking into account what is left in B
+ LD C, B
+ LD B, A
+ ADD HL, BC
+
+print_text_page_next_line:
+; When at the end of a line, jump by exactly 64-20
+ LD BC, text_buffer_line_size-lcd_line_length
+ ADD HL, BC
+ INC D
+; If D == 4, then done
+ LD A, 0x04
+ CP D
+ JP Z, end_print_text_page
+; Make sure it is not empty line, if so, skip the line
+ XOR A
+ CP (HL)
+ JP NZ, print_text_page_next_line_cursor
+; if Empty line, add 20 and then recall next line
+print_text_page_empty_line:
+ LD BC, 0x14
+ ADD HL, BC
+ JP print_text_page_next_line
+
+print_text_page_next_line_cursor:
+; Must also jump cursor to next line
+ CALL cursor_set_line
+ XOR A
+ POP BC
+ PUSH BC
+ JP print_text_page_start_loop 
+
+end_print_text_page:
+ LD A, (text_cursor)
+ LD B, A
+ CALL cursor_set
+ POP BC
+ POP HL
+ POP DE
+ POP AF
+ RET
+
+; Sets the cursor to the next line of a 4x20 LCD
+; D contains new line
+cursor_set_line:
+ PUSH AF
+ PUSH BC
 ; if D is 1 -> Set AC to 0x40
 ; if D is 2 -> Set AC to 0x14
 ; if D is 3 -> Set AC to 0x54
 
  LD A, 0x02
  AND D
- JP Z, print_lcd_check_line_2
+ JP Z, cursor_set_line_check_line_2
  LD B, 0x14
-print_lcd_check_line_2:
+cursor_set_line_check_line_2:
  LD A, 0x01
  AND D
- JP Z, print_lcd_set_ac
+ JP Z, cursor_set_line_set_ac
  LD A, 0x40
  ADD B
  LD B, A
  
-print_lcd_set_ac:
+cursor_set_line_set_ac:
  LD A, B
  OR lcd_set_ac_mask
  CALL send_instr_sync
- XOR A
- JP reset_print_lcd_loop
-
-print_lcd_set_cursor:
-; Get back the cursor value
  POP BC
+ POP AF
+ RET
+
+; Sets the cursor location based on cursor implementation of 0bLL0CCCCC
+; B contains cursor
+cursor_set:
+ PUSH AF
  PUSH BC
- LD E, lcd_line_length
- LD D, (0x00 + lcd_line_length)
- LD A, B
- SUB E
- JP C, print_lcd_set_cursor_perform
- LD D, (0x40 + lcd_line_length)
- SUB E
- JP C, print_lcd_set_cursor_perform
- LD D, (lcd_line_length + lcd_line_length)
- SUB E
- JP C, print_lcd_set_cursor_perform
- LD D, (0x54 + lcd_line_length)
+ PUSH DE
 
-print_lcd_set_cursor_perform:
- ADD D
+ LD E, 0x00
+; Seperate cursor line (A) and offset (C)
+ LD A, 0b00011111
+ AND B
+ LD C, A
+ LD A, 0b11100000
+ AND B
+
+ JP Z, end_cursor_set
+ LD D, 0b01000000
+ LD E, 0x40
+ SUB D
+ JP Z, end_cursor_set
+ LD E, 0x14
+ SUB D
+ JP Z, end_cursor_set
+ LD E, 0x54
+
+end_cursor_set:
+ LD A, E
+ ADD C
  OR lcd_set_ac_mask
  CALL send_instr_sync
- 
-end_print_lcd:
- POP BC
- POP HL
  POP DE
+ POP BC
  POP AF
  RET
