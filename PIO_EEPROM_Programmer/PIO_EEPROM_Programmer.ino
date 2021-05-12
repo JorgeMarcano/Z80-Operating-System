@@ -21,6 +21,9 @@ void setup() {
   setValueMode(false);
 
   Serial.begin(115200);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
 }
 
 void loop() {
@@ -77,6 +80,12 @@ void parseInstruction() {
     writePage(addr, buf);
   
     Serial.println("DONE");
+
+    return;
+  }
+
+  else {
+    Serial.println("Unrecognized message");
   }
 }
 
