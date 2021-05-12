@@ -1,7 +1,7 @@
 #define PIN_D0      4
 #define PIN_D7      11
 
-#define PIN_STB     3
+#define PIN_STB     A5
 #define PIN_RDY     2
 
 #define CTRL_WRITE  0b01000000
@@ -12,6 +12,8 @@
 
 bool isModeInput = true;
 
+bool isEnabled = false;
+
 void setup() {
   // put your setup code here, to run once:
   pinMode(PIN_STB, OUTPUT);
@@ -21,6 +23,9 @@ void setup() {
   setValueMode(false);
 
   Serial.begin(115200);
+  while (!Serial) {
+    continue;
+  }
 }
 
 void loop() {
@@ -34,7 +39,18 @@ void parseInstruction() {
   String message = Serial.readString();
   Serial.println(message);
 
+  if (!isEnabled) {
+    if (message.equals("begin")) {
+      isEnabled = true;
+    }
+
+    return;
+  }
+
 //  Serial.println(message.c_str());
+  if (message.length() < 1) {
+    return;
+  }
 
   if (message.c_str()[0] == 'p') {
     word start;
@@ -57,7 +73,7 @@ void parseInstruction() {
     return;
   }
 
-  else if (message.c_str()[4] == ':') {
+  else if (message.length() > 4 && message.c_str()[4] == ':') {
     word data[32];
     word addr;
     byte buf[PAGE_SIZE];
