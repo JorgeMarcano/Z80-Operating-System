@@ -1,11 +1,14 @@
 stack		EQU	0xffff
 
 INCLUDE "resets.asm"
+INCLUDE "programmer.asm"
 
 main:
 setup:
 ; Initialize Stack Pointer
  LD SP, stack
+
+ CALL programmer_init
  
  CALL lcd_setup
  
@@ -46,9 +49,8 @@ INCLUDE "print.asm"
 INCLUDE "pio.asm"
 INCLUDE "math.asm"
 INCLUDE "input.asm"
-INCLUDE "interrupts.asm"
 INCLUDE "scancodes.asm"
- 
+INCLUDE "interrupts.asm"
 
 ;---------------------------------------;
 ;										;

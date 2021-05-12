@@ -4,12 +4,20 @@
 ;
 ;---------------------------
 
-lcd_instr	    EQU 0b00000100
-lcd_data	    EQU	0b00000101
+lcd_instr	        EQU 0b00000100
+lcd_data	        EQU	0b00000101
 
-lcd_set_ac_mask EQU 0x80
+lcd_set_ac_mask     EQU 0x80
 
-lcd_line_length EQU 0x14
+lcd_line_length     EQU 0x14
+
+display_must_refresh    EQU 0xBFFF
+display_pointer_hi      EQU 0xBFFD
+display_pointer_lo      EQU 0xBFFE
+
+display_page_y          EQU 0xBFFC  ; Gives line offset
+display_page_x          EQU 0xBFFB  ; Gives offset from beginning of the line
+text_cursor             EQU 0xBFFA  ; Cursor follows the pattern 0bLL0CCCCC where L is line nb, and C char nb
 
 ; Initialize LCD
 ; A is lost
@@ -57,6 +65,7 @@ wait_for_busy_flag_loop
  RET
  
 ; Print null terminated string
+; No regard to 4 line display
 ; HL points to string beginning
 ; C contains IO destination
 print_null:
@@ -173,7 +182,7 @@ end_print_lcd:
  POP AF
  RET
 
-; Uses text_page_x, text_page_y, text_cursor to print a subset of the text_buffer
+; Uses display_pages, text_cursor to print a subset of the buffer pointed by display_pointer
 ; C contains IO destination
 print_text_page:
  PUSH AF
@@ -185,61 +194,59 @@ print_text_page:
  LD A, 0b00000001
  CALL send_instr_sync
 
-; Get page location in relative to buffer in DE
- LD A, (text_page_x)
- LD C, A
- LD A, (text_page_y)
- LD B, text_buffer_line_size
- CALL linear
- LD E, A
-; Get page absolute location
- LD HL, text_buffer
- ADD HL, DE
-
+; Get page location in HL
+ CALL page_get_location
+ 
+; FIXME: Fix print logic for new string method
  XOR A
  LD D, A
+ LD E, '\n'
 ; If first character is a null char
  CP (HL)
- JP Z, print_text_page_empty_line
+ JP Z, end_print_text_page
+; Get back the C destination
  POP BC
  PUSH BC
 print_text_page_start_loop:
+; Reset line counter to 20
  LD B, lcd_line_length
 print_text_page_loop:
+ XOR A
  CALL wait_for_busy_flag
  OUTI
- JP Z, print_text_page_next_line
+; Check if reached end of the line
+ JP Z, print_text_page_jump_next_line
  CP (HL)
+; Check if reached null terminator
+ JP Z, end_print_text_page
+ LD A, E
+ CP (HL)
+; Check if reached '\n'
  JP NZ, print_text_page_loop
-; If currently pointing to an empty part of the LCD,
-; skip to next line taking into account what is left in B
- LD C, B
- LD B, A
- ADD HL, BC
+ JP print_text_page_next_line
+
+print_text_page_jump_next_line:
+ CALL string_next_line
+ XOR A
+ CP (HL)
+ JP Z, end_print_text_page
 
 print_text_page_next_line:
-; When at the end of a line, jump by exactly 64-20
- LD BC, text_buffer_line_size-lcd_line_length
- ADD HL, BC
+; When at the end of a line, increase current line counter
  INC D
 ; If D == 4, then done
  LD A, 0x04
  CP D
  JP Z, end_print_text_page
+; Increase HL by one (skip /n)
+ INC HL
 ; Make sure it is not empty line, if so, skip the line
  XOR A
  CP (HL)
- JP NZ, print_text_page_next_line_cursor
-; if Empty line, add 20 and then recall next line
-print_text_page_empty_line:
- LD BC, 0x14
- ADD HL, BC
- JP print_text_page_next_line
-
-print_text_page_next_line_cursor:
+ JP NZ, end_print_text_page
+ 
 ; Must also jump cursor to next line
  CALL cursor_set_line
- XOR A
  POP BC
  PUSH BC
  JP print_text_page_start_loop 
@@ -314,6 +321,126 @@ end_cursor_set:
  OR lcd_set_ac_mask
  CALL send_instr_sync
  POP DE
+ POP BC
+ POP AF
+ RET
+
+; Uses page_y and page_x to and the buffer pointed in display_pointer to find the proper location
+; Points to the end of the buffer if incorrect
+; Returns the RAM location in HL
+page_get_location:
+ PUSH AF
+ PUSH BC
+ PUSH DE
+ 
+ LD D, '\n'
+ LD A, (display_page_y)
+ LD E, A
+ LD A, (display_pointer_lo)
+ LD L, A
+ LD A, (display_pointer_hi)
+
+page_get_location_loop:
+ LD A, D
+ CP (HL)
+ JP Z, page_get_location_decrease
+ XOR A
+ CPI
+ JP NZ, page_get_location_loop
+ JP end_page_get_location
+
+page_get_location_decrease:
+ DEC E
+ JP NZ, page_get_location_loop
+
+; If we have reached the correct line
+ LD A, (display_page_x)
+ LD C, A
+ LD B, E
+ ADD HL, BC
+
+end_page_get_location:
+ POP DE
+ POP BC
+ POP AF
+ RET
+
+; Gets the buffer location currently pointed to by the cursor
+; Stores the location in HL
+cursor_get_location:
+ CALL page_get_location
+ PUSH AF
+ PUSH BC
+
+; Make sure page was valid
+ XOR A
+ CP (HL)
+ JP Z, end_cursor_get_location
+; Get cursor values
+ LD A, (text_cursor)
+ LD C, A
+ AND 0b00011111
+ LD B, A
+ LD A, C
+ AND 0b11000000
+ 
+cursor_get_location_loop:
+ LD C, 0x00
+ CP C
+ JP Z, cursor_get_location_offset
+ CALL string_next_line
+ LD C, A
+ XOR A
+ CP (HL)
+ JP Z, end_cursor_get_location
+ INC HL
+ LD A, C
+ SUB 0b01000000
+ JP cursor_get_location_loop
+
+cursor_get_location_offset:
+; FIXME: Add offset caused by pageX and cursorX
+ LD C, B
+ LD B, A
+ ADD HL, BC
+ LD A, (display_page_x)
+ LD C, A
+ ADD HL, BC
+
+end_cursor_get_location:
+ POP BC
+ POP AF
+ RET
+
+ PUSH AF
+ PUSH BC
+ PUSH HL
+ LD A, (text_cursor)
+ LD D, A
+; Get character position offset, stored in E
+ AND 0b00011111
+ LD E, A
+ LD A, (display_page_x)
+ ADD E
+ LD E, A
+; Get line position
+ LD A, D
+ SRL A
+ SRL A
+ SRL A
+ SRL A
+ SRL A
+ SRL A
+ LD HL, display_page_y
+ ADD (HL)
+
+; Perform 64*(y+cursorLine) + x+cursorChar
+ LD B, text_buffer_line_size
+ LD C, E
+ CALL linear
+ LD E, A
+
+ POP HL
  POP BC
  POP AF
  RET

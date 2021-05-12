@@ -86,3 +86,73 @@ end_string_clear:
  POP BC
  POP AF
  RET
+
+; Moves forward until it reaches a '\n' character or a null character
+; HL contains string
+; HL returns newline
+string_next_line:
+ PUSH AF
+ PUSH BC
+ PUSH DE
+
+ LD E, '\n'
+string_next_line_loop:
+; Keep going until end of the line reached or end of string 
+ LD A, E
+ CP (HL)
+ JP Z, end_string_next_line
+ XOR A
+ CPI
+ JP Z, end_string_next_line
+ JP string_next_line_loop
+
+end_string_next_line:
+ POP DE
+ POP BC
+ POP AF
+ RET
+
+; Moves backwards until it reaches a '\n' character or a null character
+; HL contains string
+; DE contains beginning of string
+; HL returns newline
+; Points to beginning of string if none found
+string_prev_line:
+ PUSH AF
+ PUSH BC
+ PUSH DE
+; Check if already at beg
+ LD A, E
+ CP L
+ JP NZ, string_prev_line_loop
+ LD A, D
+ CP H
+ JP Z, end_string_prev_line
+; Dec HL
+ DEC HL
+; Check if already at beg
+string_prev_line_loop:
+ LD A, E
+ CP L
+ JP NZ, string_prev_line_loop_good
+ LD A, D
+ CP H
+ JP Z, end_string_prev_line
+string_prev_line_loop_good:
+ LD A, '\n'
+ CP (HL)
+ JP Z, end_string_prev_line
+ XOR A
+ CPD
+ JP NZ, string_prev_line_loop
+
+ LD H, D
+ LD L, E
+end_string_prev_line:
+ POP DE
+ POP BC
+ POP AF
+ RET
+
+; TODO: Implement
+; Shifts the string, start from the end of the string

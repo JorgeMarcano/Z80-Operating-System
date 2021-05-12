@@ -183,8 +183,8 @@ end_keyboard_int:
  AND keyboard_status_release ^ 0xff
  LD (keyboard_status), A
 end_keyboard_int_bypass_release:
- LD A, 0x01
- LD (keyboard_must_refresh), A
+;  LD A, 0x01
+;  LD (keyboard_must_refresh), A
  EXX
  EX AF, AF'
  EI

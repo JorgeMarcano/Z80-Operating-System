@@ -7,8 +7,8 @@
 ;---------------------------------------;
 ALIGN 2
 interrupts_table:
-DEFB LO(keyboard_interrupt)
-DEFB HI(keyboard_interrupt)
+DEFB LO(command_interrupt)
+DEFB HI(command_interrupt)
 end_of_interrupt_table:
 
 PRINT "Interrupt table is located at: ", {hex} interrupts_table

@@ -1,4 +1,5 @@
-.\rasm_win64.exe .\OS\main.asm
+#.\rasm_win64.exe .\OS\main.asm
+.\rasm_win64.exe .\Keyboard\main.asm
 
 Write-Host "`r`n`r`n"
 
