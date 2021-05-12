@@ -93,6 +93,12 @@ void parseInstruction() {
     writePage(addr, buf);
   
     Serial.println("DONE");
+
+    return;
+  }
+
+  else {
+    Serial.println("Unrecognized message");
   }
 }
 
